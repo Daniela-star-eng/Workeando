@@ -1,0 +1,38 @@
+name: CI Minimal - Expo/React Native
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build_and_test:
+    name: Build & Lint
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./app
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      # Si tienes configurado un linter en tu proyecto (opcional pero recomendado)
+      # - name: Ejecutar Linter
+      #   run: npm run lint
+
+      # Verifica que Expo puede construir el proyecto sin errores fatales
+      - name: Verificar Build
+        run: npx expo export --dry-run
