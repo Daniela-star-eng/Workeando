@@ -1,0 +1,64 @@
+name: CI - Expo/React Native
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_and_test:
+    name: Lint, Test, SonarQube y Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarQube necesita el historial completo
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Análisis estático (Lint)
+        run: npm run lint
+
+      - name: Pruebas unitarias con cobertura
+        run: npm test -- --coverage
+
+      # ---------- 1) ANÁLISIS DE SONARQUBE ----------
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+
+      - name: Verificar Build (export web)
+        run: npx expo export --platform web
+
+      # ---------- 2) NOTIFICACIÓN CUANDO EL PIPELINE FALLA ----------
+      - name: Notificar fallo a Discord
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -sS -H "Content-Type: application/json" \
+            -d "{\"content\": \"❌ **Pipeline CI falló** en \`${{ github.repository }}\`\nRama: \`${{ github.ref_name }}\`\nAutor: ${{ github.actor }}\nVer ejecución: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$DISCORD_WEBHOOK_URL"
+
+      # Alternativa Slack: mismo "if: failure()", secreto SLACK_WEBHOOK_URL y campo "text"
+      # - name: Notificar fallo a Slack
+      #   if: failure()
+      #   run: |
+      #     curl -sS -H "Content-Type: application/json" \
+      #       -d "{\"text\": \"❌ Pipeline CI falló en ${{ github.repository }} (${{ github.ref_name }}). ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+      #       "${{ secrets.SLACK_WEBHOOK_URL }}"
